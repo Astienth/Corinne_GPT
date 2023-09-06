@@ -2,14 +2,17 @@ require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
-const { generateDependencyReport } = require('@discordjs/voice');
 
 // Create a new client instance
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+global.client = new Client({ intents: [
+	GatewayIntentBits.Guilds,
+	GatewayIntentBits.GuildMessages,
+	GatewayIntentBits.MessageContent,
+	GatewayIntentBits.GuildVoiceStates,
+] });
 
-client.commands = new Collection();
+global.client.commands = new Collection();
 const foldersPath = path.join(__dirname, 'src/commands');
-console.log(foldersPath);
 const commandFolders = fs.readdirSync(foldersPath);
 
 for (const folder of commandFolders) {
@@ -20,7 +23,7 @@ for (const folder of commandFolders) {
 		const command = require(filePath);
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
 		if ('data' in command && 'execute' in command) {
-			client.commands.set(command.data.name, command);
+			global.client.commands.set(command.data.name, command);
 		} else {
 			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
 		}
@@ -34,12 +37,11 @@ for (const file of eventFiles) {
 	const filePath = path.join(eventsPath, file);
 	const event = require(filePath);
 	if (event.once) {
-		client.once(event.name, (...args) => event.execute(...args));
-	} else {
-		client.on(event.name, (...args) => event.execute(...args));
+		global.client.once(event.name, (...args) => event.execute(...args));
+	}
+	else {
+		global.client.on(event.name, (...args) => event.execute(...args));
 	}
 }
 
-// console.log(generateDependencyReport());
-
-client.login(process.env.DISCORD_TOKEN);
+global.client.login(process.env.DISCORD_TOKEN);
