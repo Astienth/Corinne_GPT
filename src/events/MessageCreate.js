@@ -1,27 +1,26 @@
 const { Events } = require('discord.js');
-const discordVoice = require('@discordjs/voice');
+const voiceStatus = require('../utils/VoiceStatus');
 
 const MessageCreate = {
-	voiceChannel: null,
 	name: Events.MessageCreate,
+	authorized: ['188033772434882560', '331701285277401088'],
 	async execute(message) {
+		if(message.author.id == '323788974416199680') {
+			// do whatever makes Sylvain crazy
+			return;
+		}
+		if(!this.authorized.includes(message.author.id)) {
+			return;
+		}
 		// Join the same voice channel of the author of the message
 		if (message.content === '!join') {
-			if (message.member.voice.channel) { 
-				discordVoice.joinVoiceChannel({
-					channelId: message.member.voice.channel.id,
-					guildId: message.guild.id,
-					adapterCreator: message.guild.voiceAdapterCreator,
-				});
-				this.voiceChannel = discordVoice.getVoiceConnection(message.guild.id);
+			if (message.member.voice.channel) {
+				voiceStatus.init(message);
 			}
 		}
 
 		if (message.content === '!logout') {
-            if(this.voiceChannel) {
-                this.voiceChannel.destroy();
-                this.voiceChannel = null;
-            }
+			voiceStatus.destroyConnection();
 		}
 	},
 };
