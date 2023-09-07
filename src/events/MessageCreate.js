@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const voiceStatus = require('../utils/VoiceStatus');
+const voiceStatus = require('../behaviours/VoiceStatus');
 
 const MessageCreate = {
 	name: Events.MessageCreate,

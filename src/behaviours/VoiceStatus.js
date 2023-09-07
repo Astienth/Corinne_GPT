@@ -1,10 +1,15 @@
 const { VoiceConnectionStatus, entersState } = require('@discordjs/voice');
+const VoiceCreator = require('../utils/VoiceCreator');
 const discordVoice = require('@discordjs/voice');
+const { createAudioPlayer, createAudioResource, NoSubscriberBehavior } = require('@discordjs/voice');
 const fs = require('fs');
 
 const voiceStatus = {
+    SayBonjour: true,
+    bonjour: 'Bonjour, je suis Corinne Gépété et ça pue.',
     voiceConnection: null,
     channel: null,
+    audioPlayer: null,
     channelUsers: {},
     audioPipe: null,
     onDisconnect: function() {
@@ -26,6 +31,15 @@ const voiceStatus = {
         // When player is ready again I guess, not when connected...
         this.voiceConnection.on(VoiceConnectionStatus.Ready, (oldState, newState) => {
             console.log('Connection is in the Ready state!');
+            if(this.SayBonjour) {
+                this.textToSpeechSend(this.bonjour);
+                this.SayBonjour = false;
+            }
+        });
+    },
+    onPlayerCreated: function() {
+        this.audioPlayer.on('error', error => {
+            console.error('Error:', error.message, 'with track', error.resource.metadata.title);
         });
     },
     createConnection: function(message) {
@@ -46,6 +60,7 @@ const voiceStatus = {
 		if(this.voiceConnection) {
 			this.voiceConnection.destroy();
 			this.voiceConnection = null;
+            this.SayBonjour = true;
 		}
 	},
     addUser: function(user) {
@@ -61,14 +76,35 @@ const voiceStatus = {
         console.log(global.client.user.id);
         delete this.channelUsers[global.client.user.id];
     },
-    init: function(message) {
+    textToSpeechSend: async function(text) {
+        // check if channel exists
+        if(!this.voiceConnection || !this.channel) return;
+
+        // create mp3
+        const file = await VoiceCreator.createAudio(text);
+
+        // send mp3 to channel
+        const resource = createAudioResource(file);
+        this.audioPlayer.play(resource);
+    },
+    init: async function(message) {
         try {
             this.channel = message.member.voice.channel;
             this.createConnection(message);
+            this.audioPlayer = createAudioPlayer({
+                behaviors: {
+                    noSubscriber: NoSubscriberBehavior.Pause,
+                },
+            });
+            this.onPlayerCreated();
+            this.voiceConnection.subscribe(this.audioPlayer);
+
+            // start listeners
             this.onDisconnect();
+            this.onReady();
+
             // get users
-            this.getUsers(message.member.voice.channel);
-            // start listening
+            await this.getUsers(message.member.voice.channel);
         }
         catch (error) {
             console.log(error);
