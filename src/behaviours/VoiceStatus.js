@@ -142,7 +142,7 @@ const voiceStatus = {
 		if(this.voiceConnection) {
 			this.voiceConnection.destroy();
 			this.voiceConnection = null;
-            this.SayBonjour = true;
+            this.channel = null;
 		}
 	},
 
