@@ -1,17 +1,23 @@
 const { VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const VoiceCreator = require('../utils/VoiceCreator');
 const discordVoice = require('@discordjs/voice');
-const { createAudioPlayer, createAudioResource, NoSubscriberBehavior } = require('@discordjs/voice');
+const { OpusEncoder } = require('@discordjs/opus');
+const HercAi = require('../utils/HercAi');
+const Deepgram = require('../utils/Deepgram');
+const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehaviorType } = require('@discordjs/voice');
 const fs = require('fs');
 
 const voiceStatus = {
-    SayBonjour: true,
-    bonjour: 'Bonjour, je suis Corinne Gépété et ça pue.',
+    bonjour: 'Coucou les loulous, c\'est Corinne Gépété !',
     voiceConnection: null,
     channel: null,
     audioPlayer: null,
-    channelUsers: {},
+    channelUsers: null, // Collection
     audioPipe: null,
+    botSpeaking: false,
+    selectedUser: null,
+
+    // EVENTS
     onDisconnect: function() {
         this.voiceConnection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
             try {
@@ -27,14 +33,35 @@ const voiceStatus = {
             }
         });
     },
+    onBotSpeaking: function() {
+        this.audioPlayer.on(discordVoice.AudioPlayerStatus.Playing, function() {
+            console.log('Bot is speaking');
+            this.botSpeaking = true;
+        });
+        this.audioPlayer.on(discordVoice.AudioPlayerStatus.Idle, function() {
+            console.log('Bot is NOT speaking');
+            this.botSpeaking = false;
+        });
+    },
     onReady: function() {
         // When player is ready again I guess, not when connected...
         this.voiceConnection.on(VoiceConnectionStatus.Ready, (oldState, newState) => {
             console.log('Connection is in the Ready state!');
-            if(this.SayBonjour) {
-                this.textToSpeechSend(this.bonjour);
-                this.SayBonjour = false;
-            }
+            // forcing to avoid listening straight away
+            this.botSpeaking = true;
+            this.textToSpeechSend(this.bonjour);
+
+            // listen to user
+            /*
+            this.selectedUser = this.getRandomUser();
+            this.voiceConnection.receiver.speaking.on('start', function(userId) {
+                if(!this.botSpeaking && this.selectedUser.user.id === userId) {
+                    console.log('listening to user');
+                    this.listenToUser(this.selectedUser);
+                    this.selectedUser = this.getRandomUser();
+                }
+            });
+            */
         });
     },
     onPlayerCreated: function() {
@@ -42,27 +69,8 @@ const voiceStatus = {
             console.error('Error:', error.message, 'with track', error.resource.metadata.title);
         });
     },
-    createConnection: function(message) {
-        discordVoice.joinVoiceChannel({
-            channelId: message.member.voice.channel.id,
-            guildId: message.guild.id,
-            adapterCreator: message.guild.voiceAdapterCreator,
-            selfDeaf: false,
-        });
-        this.voiceConnection = discordVoice.getVoiceConnection(message.guild.id);
-    },
-    listenToUser: function(user) {
-        // Create a ReadableStream of s16le PCM audio
-        this.audioPipe = this.voiceConnection.receiver.createStream(user, { mode: 'pcm' });
-        this.audioPipe.pipe(fs.createWriteStream('user_audio'));
-    },
-	destroyConnection: function() {
-		if(this.voiceConnection) {
-			this.voiceConnection.destroy();
-			this.voiceConnection = null;
-            this.SayBonjour = true;
-		}
-	},
+
+    // Manage Users
     addUser: function(user) {
         this.channelUsers[user.user.id] = user;
     },
@@ -72,9 +80,39 @@ const voiceStatus = {
     getUsers: async function(channel) {
         const fetchedChannel = await channel.fetch(true);
         this.channelUsers = fetchedChannel.members;
-        // remove bot
-        console.log(global.client.user.id);
-        delete this.channelUsers[global.client.user.id];
+        // remove bot 1148931901260828702
+        this.channelUsers = this.channelUsers.filter(user => user.user.id != global.client.user.id);
+    },
+    getRandomUser: function() {
+        return this.channelUsers.random();
+    },
+
+    // LISTEN AND REPLY
+    getTextReply: async function(text) {
+        return await HercAi.askHercAi(text);
+    },
+    listenToUser: async function(user) {
+        const subscription = this.voiceConnection.receiver.subscribe(user.id, { end: {
+            behavior: EndBehaviorType.AfterSilence,
+            duration: 100,
+        } });
+
+        const buffer = [];
+        const encoder = new OpusEncoder(48000, 2);
+
+        subscription.on('data', chunk => {
+            buffer.push(encoder.decode(chunk));
+        });
+        subscription.once('end', async () => {
+            // Convert audio format
+            const bufferAudio = Buffer.from(buffer);
+            const text = Deepgram.convert(bufferAudio);
+            console.log(text);
+
+            // send to AI
+
+            // send back to voice chat
+        });
     },
     textToSpeechSend: async function(text) {
         // check if channel exists
@@ -87,28 +125,65 @@ const voiceStatus = {
         const resource = createAudioResource(file);
         this.audioPlayer.play(resource);
     },
+
+    // MAnage COnnection
+    createConnection: async function(message) {
+        discordVoice.joinVoiceChannel({
+            channelId: message.member.voice.channel.id,
+            guildId: message.guild.id,
+            adapterCreator: message.guild.voiceAdapterCreator,
+            selfDeaf: false,
+        });
+        this.voiceConnection = discordVoice.getVoiceConnection(message.guild.id);
+        // get users
+        await this.getUsers(message.member.voice.channel);
+    },
+	destroyConnection: function() {
+		if(this.voiceConnection) {
+			this.voiceConnection.destroy();
+			this.voiceConnection = null;
+            this.SayBonjour = true;
+		}
+	},
+
+    // INIT
     init: async function(message) {
         try {
             this.channel = message.member.voice.channel;
-            this.createConnection(message);
+            await this.createConnection(message);
+
+            // audioPlayer
             this.audioPlayer = createAudioPlayer({
                 behaviors: {
                     noSubscriber: NoSubscriberBehavior.Pause,
                 },
             });
-            this.onPlayerCreated();
             this.voiceConnection.subscribe(this.audioPlayer);
 
             // start listeners
             this.onDisconnect();
             this.onReady();
-
-            // get users
-            await this.getUsers(message.member.voice.channel);
+            this.onBotSpeaking();
+            this.onPlayerCreated();
         }
         catch (error) {
             console.log(error);
         }
+    },
+
+    // speech loop
+    speechLoop: function() {
+        // select and listen to user
+
+        // create audio to text
+
+        // submit text
+
+        // text to speech
+
+        // send to voice chat
+
+        // manage status / time interval ?
     },
 };
 
