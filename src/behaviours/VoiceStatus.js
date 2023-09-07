@@ -5,64 +5,58 @@ const { OpusEncoder } = require('@discordjs/opus');
 const HercAi = require('../utils/HercAi');
 const Deepgram = require('../utils/Deepgram');
 const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehaviorType } = require('@discordjs/voice');
-const fs = require('fs');
 
 const voiceStatus = {
-    bonjour: 'Coucou les loulous, c\'est Corinne Gépété !',
+    // eslint-disable-next-line quotes
+    bonjour: "Bonjour",
     voiceConnection: null,
     channel: null,
     audioPlayer: null,
-    channelUsers: null, // Collection
-    audioPipe: null,
+    channelUsers: null,
     botSpeaking: false,
     selectedUser: null,
 
     // EVENTS
-    onDisconnect: function() {
-        this.voiceConnection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
-            try {
-                await Promise.race([
-                    entersState(this.voiceConnection, VoiceConnectionStatus.Signalling, 5_000),
-                    entersState(this.voiceConnection, VoiceConnectionStatus.Connecting, 5_000),
-                ]);
-                // Seems to be reconnecting to a new channel - ignore disconnect
-            }
-            catch (error) {
-                // Seems to be a real disconnect which SHOULDN'T be recovered from
-                this.voiceConnection.destroy();
-            }
-        });
+    startListeners: function() {
+        this.voiceConnection.on(VoiceConnectionStatus.Disconnected, this.onDisconnect.bind(this));
+        this.audioPlayer.on(discordVoice.AudioPlayerStatus.Playing, this.onBotSpeaking.bind(this, true));
+        this.audioPlayer.on(discordVoice.AudioPlayerStatus.Idle, this.onBotSpeaking.bind(this, false));
+        this.voiceConnection.on(VoiceConnectionStatus.Ready, this.onReady.bind(this));
+        this.voiceConnection.receiver.speaking.on('start', this.onUserSpeaking.bind(this));
+        this.onPlayerCreated();
     },
-    onBotSpeaking: function() {
-        this.audioPlayer.on(discordVoice.AudioPlayerStatus.Playing, function() {
-            console.log('Bot is speaking');
-            this.botSpeaking = true;
-        });
-        this.audioPlayer.on(discordVoice.AudioPlayerStatus.Idle, function() {
-            console.log('Bot is NOT speaking');
-            this.botSpeaking = false;
-        });
+    onDisconnect: async function() {
+        try {
+            await Promise.race([
+                entersState(this.voiceConnection, VoiceConnectionStatus.Signalling, 5_000),
+                entersState(this.voiceConnection, VoiceConnectionStatus.Connecting, 5_000),
+            ]);
+            // Seems to be reconnecting to a new channel - ignore disconnect
+        }
+        catch (error) {
+            // Seems to be a real disconnect which SHOULDN'T be recovered from
+            this.voiceConnection.destroy();
+        }
     },
-    onReady: function() {
-        // When player is ready again I guess, not when connected...
-        this.voiceConnection.on(VoiceConnectionStatus.Ready, (oldState, newState) => {
-            console.log('Connection is in the Ready state!');
-            // forcing to avoid listening straight away
+    onBotSpeaking: function(state) {
+         this.botSpeaking = state;
+         console.log('BOT SPEAKING ' + this.botSpeaking);
+    },
+    onReady: async function() {
+        console.log('Connection is in the Ready state!');
+        // forcing to avoid listening straight away
+        this.selectedUser = this.getRandomUser();
+        this.botSpeaking = true;
+        await this.textToSpeechSend(this.bonjour);
+    },
+    onUserSpeaking: function(userId) {
+        console.log(this.selectedUser.user.username);
+        if(!this.botSpeaking && this.selectedUser.user.id === userId) {
+            console.log('LISTENING TO USER');
             this.botSpeaking = true;
-            this.textToSpeechSend(this.bonjour);
-
-            // listen to user
-            /*
+            this.listenToUser(userId);
             this.selectedUser = this.getRandomUser();
-            this.voiceConnection.receiver.speaking.on('start', function(userId) {
-                if(!this.botSpeaking && this.selectedUser.user.id === userId) {
-                    console.log('listening to user');
-                    this.listenToUser(this.selectedUser);
-                    this.selectedUser = this.getRandomUser();
-                }
-            });
-            */
-        });
+        }
     },
     onPlayerCreated: function() {
         this.audioPlayer.on('error', error => {
@@ -91,8 +85,8 @@ const voiceStatus = {
     getTextReply: async function(text) {
         return await HercAi.askHercAi(text);
     },
-    listenToUser: async function(user) {
-        const subscription = this.voiceConnection.receiver.subscribe(user.id, { end: {
+    listenToUser: async function(userId) {
+        const subscription = this.voiceConnection.receiver.subscribe(userId, { end: {
             behavior: EndBehaviorType.AfterSilence,
             duration: 100,
         } });
@@ -106,12 +100,15 @@ const voiceStatus = {
         subscription.once('end', async () => {
             // Convert audio format
             const bufferAudio = Buffer.from(buffer);
-            const text = Deepgram.convert(bufferAudio);
-            console.log(text);
+           // console.log(bufferAudio,buffer);
+            const text = await Deepgram.convert(bufferAudio);
+            console.log('Res deepgram ' + text);
 
             // send to AI
-
+            const reply = await HercAi.askHercAi(text);
+            console.log(reply);
             // send back to voice chat
+            await this.textToSpeechSend(reply);
         });
     },
     textToSpeechSend: async function(text) {
@@ -126,7 +123,7 @@ const voiceStatus = {
         this.audioPlayer.play(resource);
     },
 
-    // MAnage COnnection
+    // Manage COnnection
     createConnection: async function(message) {
         discordVoice.joinVoiceChannel({
             channelId: message.member.voice.channel.id,
@@ -143,6 +140,10 @@ const voiceStatus = {
 			this.voiceConnection.destroy();
 			this.voiceConnection = null;
             this.channel = null;
+            this.audioPlayer = null;
+            this.channelUsers = null;
+            this.botSpeaking = false;
+            this.selectedUser = null;
 		}
 	},
 
@@ -161,29 +162,11 @@ const voiceStatus = {
             this.voiceConnection.subscribe(this.audioPlayer);
 
             // start listeners
-            this.onDisconnect();
-            this.onReady();
-            this.onBotSpeaking();
-            this.onPlayerCreated();
+            this.startListeners();
         }
         catch (error) {
             console.log(error);
         }
-    },
-
-    // speech loop
-    speechLoop: function() {
-        // select and listen to user
-
-        // create audio to text
-
-        // submit text
-
-        // text to speech
-
-        // send to voice chat
-
-        // manage status / time interval ?
     },
 };
 

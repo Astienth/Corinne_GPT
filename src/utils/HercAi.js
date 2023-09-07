@@ -7,7 +7,8 @@ const HercAi = {
             this.client = new Hercai();
         }
         /* Available Models "v2","beta" | Default Model; "v2" */
-        return await this.client.question({ model:'v2', content: text });
+        const res = await this.client.question({ model:'v2', content: text });
+        return res.reply;
     },
 };
 
