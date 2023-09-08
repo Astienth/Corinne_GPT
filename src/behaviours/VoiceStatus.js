@@ -1,7 +1,6 @@
 const { VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const VoiceCreator = require('../utils/VoiceCreator');
 const discordVoice = require('@discordjs/voice');
-const { OpusEncoder } = require('@discordjs/opus');
 const HercAi = require('../utils/HercAi');
 const Deepgram = require('../utils/Deepgram');
 const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehaviorType } = require('@discordjs/voice');
@@ -16,6 +15,7 @@ const voiceStatus = {
     botSpeaking: false,
     selectedUser: null,
     triggerWords: ['corinne', 'corrine', 'corine', 'corrinne'],
+    limitReply: 250,
 
     // EVENTS
     startListeners: function() {
@@ -95,13 +95,15 @@ const voiceStatus = {
         subscription.once('end', async () => {
             const mp3Path = await Deepgram.convertPCMtoMP3(audioFilePath);
             try {
-                const text = await Deepgram.convert(mp3Path, 'audio/mp3');
+                let text = await Deepgram.convert(mp3Path, 'audio/mp3');
                 console.log('Result deepgram ' + text);
 
                 // send to AI only on some conditions
                 // TODO listen to all users and use trigger words to start
                 // && this.triggerWords.some(v => text.includes(v))
                 if(text != '') {
+                    // limit length of reply
+                    text = text.substring(0, this.limitReply);
                     const reply = await HercAi.askHercAi(text);
                     console.log('Reply HercAi ' + reply);
                     // send back to voice chat
