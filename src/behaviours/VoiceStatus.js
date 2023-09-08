@@ -7,7 +7,7 @@ const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehavio
 
 const voiceStatus = {
     // eslint-disable-next-line quotes
-    bonjour: "Bonjour",
+    bonjour: "Bonjour les loulous, je suis opérationelle et à votre service",
     voiceConnection: null,
     channel: null,
     audioPlayer: null,
@@ -95,16 +95,17 @@ const voiceStatus = {
         subscription.once('end', async () => {
             const mp3Path = await Deepgram.convertPCMtoMP3(audioFilePath);
             try {
-                let text = await Deepgram.convert(mp3Path, 'audio/mp3');
+                const text = await Deepgram.convert(mp3Path, 'audio/mp3');
                 console.log('Result deepgram ' + text);
 
                 // send to AI only on some conditions
                 // TODO listen to all users and use trigger words to start
                 // && this.triggerWords.some(v => text.includes(v))
                 if(text != '') {
+                    console.log(text);
+                    let reply = await HercAi.askHercAi(text);
                     // limit length of reply
-                    text = text.substring(0, this.limitReply);
-                    const reply = await HercAi.askHercAi(text);
+                    reply = reply.substring(0, this.limitReply);
                     console.log('Reply HercAi ' + reply);
                     // send back to voice chat
                     await this.textToSpeechSend(reply);
