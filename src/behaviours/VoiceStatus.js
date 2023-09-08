@@ -15,6 +15,7 @@ const voiceStatus = {
     channelUsers: null,
     botSpeaking: false,
     selectedUser: null,
+    triggerWords: ['corinne', 'corrine', 'corine', 'corrinne'],
 
     // EVENTS
     startListeners: function() {
@@ -91,25 +92,29 @@ const voiceStatus = {
             duration: 100,
         } });
 
-        const buffer = [];
-        const encoder = new OpusEncoder(48000, 2);
-
-        subscription.on('data', chunk => {
-            buffer.push(encoder.decode(chunk));
-        });
         subscription.once('end', async () => {
-            // Convert audio format
-            const bufferAudio = Buffer.from(buffer);
-           // console.log(bufferAudio,buffer);
-            const text = await Deepgram.convert(bufferAudio);
-            console.log('Res deepgram ' + text);
+            const mp3Path = await Deepgram.convertPCMtoMP3(audioFilePath);
+            try {
+                const text = await Deepgram.convert(mp3Path, 'audio/mp3');
+                console.log('Result deepgram ' + text);
 
-            // send to AI
-            const reply = await HercAi.askHercAi(text);
-            console.log(reply);
-            // send back to voice chat
-            await this.textToSpeechSend(reply);
+                // send to AI only on some conditions
+                // TODO listen to all users and use trigger words to start
+                // && this.triggerWords.some(v => text.includes(v))
+                if(text != '') {
+                    const reply = await HercAi.askHercAi(text);
+                    console.log('Reply HercAi ' + reply);
+                    // send back to voice chat
+                    await this.textToSpeechSend(reply);
+                }
+            }
+            catch (err) {
+                console.log(err);
+                this.botSpeaking = false;
+            }
         });
+
+        const audioFilePath = await Deepgram.recordAudio(subscription);
     },
     textToSpeechSend: async function(text) {
         // check if channel exists
