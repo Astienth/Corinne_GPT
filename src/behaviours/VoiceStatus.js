@@ -25,7 +25,22 @@ const voiceStatus = {
         this.audioPlayer.on(discordVoice.AudioPlayerStatus.Idle, this.onBotSpeaking.bind(this, false));
         this.voiceConnection.on(VoiceConnectionStatus.Ready, this.onReady.bind(this));
         this.voiceConnection.receiver.speaking.on('start', this.onUserSpeaking.bind(this));
+        global.client.on('voiceStateUpdate', this.onVoiceStateUpdate.bind(this));
         this.onPlayerCreated();
+    },
+    onVoiceStateUpdate: function(oldState, newState) {
+        if(this.channel) {
+            // deconnection
+            if(oldState.channelId == this.channel.id
+                && newState.channelId != this.channel.id) {
+                this.removeUser(oldState.id);
+            }
+            // connection
+            if(oldState.channelId != this.channel.id
+                && newState.channelId == this.channel.id) {
+                this.getUsers();
+            }
+        }
     },
     onDisconnect: async function() {
         try {
@@ -67,16 +82,12 @@ const voiceStatus = {
     },
 
     // Manage Users
-    addUser: function(user) {
-        console.log('ADD USER ' + user.user.name);
-        this.channelUsers[user.user.id] = user;
+    removeUser: function(userId) {
+        console.log('REMOVE USER ' + this.channelUsers.get(userId).user.username);
+        delete this.channelUsers.delete(userId);
     },
-    removeUser: function(user) {
-        console.log('REMOVE USER ' + user.user.name);
-        delete this.user[user.user.id];
-    },
-    getUsers: async function(channel) {
-        const fetchedChannel = await channel.fetch(true);
+    getUsers: async function() {
+        const fetchedChannel = await this.channel.fetch(true);
         this.channelUsers = fetchedChannel.members;
         // remove bot 1148931901260828702
         this.channelUsers = this.channelUsers.filter(user => user.user.id != global.client.user.id);
@@ -117,10 +128,12 @@ const voiceStatus = {
                         let reply = await HercAi.askHercAi(text);
                         console.log('Original reply HercAi: ' + reply);
                         // limit length of reply
-                        reply = reply.toLowerCase();
-                        const lastPoint = reply.indexOf('.', this.limitReply);
-                        reply = reply.substring(0, lastPoint);
-                        console.log('Limited reply HercAi (' + reply.length + '): ' + reply);
+                        if(reply.length > this.limitReply) {
+                            reply = reply.toLowerCase();
+                            const lastPoint = reply.indexOf('.', this.limitReply);
+                            reply = reply.substring(0, lastPoint);
+                            console.log('Limited reply HercAi (' + reply.length + '): ' + reply);
+                        }
                         // send back to voice chat
                         await this.textToSpeechSend(reply);
                         return;
@@ -164,7 +177,7 @@ const voiceStatus = {
         });
         this.voiceConnection = discordVoice.getVoiceConnection(message.guild.id);
         // get users
-        await this.getUsers(message.member.voice.channel);
+        await this.getUsers();
     },
 	destroyConnection: function() {
 		if(this.voiceConnection) {
