@@ -15,6 +15,7 @@ const speechToText = {
             const audio = { buffer: audioFile, mimetype: mimetype };
             const response = await this.client.transcription.preRecorded(audio, {
                 punctuate: true,
+                // TODO autodetect language ? Check if language is in the reply
                 language: 'fr',
             });
             return response.results.channels[0].alternatives[0].transcript;

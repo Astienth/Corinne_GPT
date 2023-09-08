@@ -7,7 +7,7 @@ const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehavio
 
 const voiceStatus = {
     // eslint-disable-next-line quotes
-    bonjour: "Bonjour les loulous, je suis opérationelle et à votre service",
+    bonjour: "Bonjour les loulous, je suis opérationelle et à votre service mais un peu lente, ne vous moquez pas sinon je vous banne",
     voiceConnection: null,
     channel: null,
     audioPlayer: null,
@@ -16,6 +16,7 @@ const voiceStatus = {
     selectedUser: null,
     triggerWords: ['corinne', 'corrine', 'corine', 'corrinne'],
     limitReply: 250,
+    userProcessed: null,
 
     // EVENTS
     startListeners: function() {
@@ -45,18 +46,18 @@ const voiceStatus = {
     },
     onReady: async function() {
         console.log('Connection is in the Ready state!');
+        // this.selectedUser = this.getRandomUser();
         // forcing to avoid listening straight away
-        this.selectedUser = this.getRandomUser();
         this.botSpeaking = true;
         await this.textToSpeechSend(this.bonjour);
     },
     onUserSpeaking: function(userId) {
-        console.log(this.selectedUser.user.username);
-        if(!this.botSpeaking && this.selectedUser.user.id === userId) {
+        // console.log(this.selectedUser.user.username);
+        // if(!this.botSpeaking && this.selectedUser.user.id === userId) {
+        if(!this.botSpeaking) {
             console.log('LISTENING TO USER');
-            this.botSpeaking = true;
             this.listenToUser(userId);
-            this.selectedUser = this.getRandomUser();
+            // this.selectedUser = this.getRandomUser();
         }
     },
     onPlayerCreated: function() {
@@ -67,9 +68,11 @@ const voiceStatus = {
 
     // Manage Users
     addUser: function(user) {
+        console.log('ADD USER ' + user.user.name);
         this.channelUsers[user.user.id] = user;
     },
     removeUser: function(user) {
+        console.log('REMOVE USER ' + user.user.name);
         delete this.user[user.user.id];
     },
     getUsers: async function(channel) {
@@ -95,21 +98,35 @@ const voiceStatus = {
         subscription.once('end', async () => {
             const mp3Path = await Deepgram.convertPCMtoMP3(audioFilePath);
             try {
-                const text = await Deepgram.convert(mp3Path, 'audio/mp3');
+                let text = await Deepgram.convert(mp3Path, 'audio/mp3');
                 console.log('Result deepgram ' + text);
-
-                // send to AI only on some conditions
-                // TODO listen to all users and use trigger words to start
-                // && this.triggerWords.some(v => text.includes(v))
-                if(text != '') {
-                    console.log(text);
-                    let reply = await HercAi.askHercAi(text);
-                    // limit length of reply
-                    reply = reply.substring(0, this.limitReply);
-                    console.log('Reply HercAi ' + reply);
-                    // send back to voice chat
-                    await this.textToSpeechSend(reply);
+                // look for trigger word
+                text = text.toLowerCase();
+                const match = this.triggerWords.find(v => text.includes(v));
+                console.log('Match ' + match);
+                if(match) {
+                    // block all listerners
+                    this.botSpeaking = true;
+                    this.userProcessed = userId;
+                    // remove Corinne part of the
+                    text = text.substring(text.indexOf(match) + match.length, text.length - 1);
+                    console.log('Recognized match: ' + text);
+                    // send to AI only on some conditions
+                    if(text != '' && this.userProcessed == userId) {
+                        console.log('Matching text: ' + text);
+                        let reply = await HercAi.askHercAi(text);
+                        console.log('Original reply HercAi: ' + reply);
+                        // limit length of reply
+                        reply = reply.toLowerCase();
+                        const lastPoint = reply.indexOf('.', this.limitReply);
+                        reply = reply.substring(0, lastPoint);
+                        console.log('Limited reply HercAi (' + reply.length + '): ' + reply);
+                        // send back to voice chat
+                        await this.textToSpeechSend(reply);
+                        return;
+                    }
                 }
+                this.botSpeaking = false;
             }
             catch (err) {
                 console.log(err);
@@ -120,15 +137,21 @@ const voiceStatus = {
         const audioFilePath = await Deepgram.recordAudio(subscription);
     },
     textToSpeechSend: async function(text) {
-        // check if channel exists
-        if(!this.voiceConnection || !this.channel) return;
+        try {
+            // check if channel exists
+            if(!this.voiceConnection || !this.channel) return;
 
-        // create mp3
-        const file = await VoiceCreator.createAudio(text);
+            // create mp3
+            const file = await VoiceCreator.createAudio(text);
 
-        // send mp3 to channel
-        const resource = createAudioResource(file);
-        this.audioPlayer.play(resource);
+            // send mp3 to channel
+            const resource = createAudioResource(file);
+            this.audioPlayer.play(resource);
+        }
+        catch (err) {
+            console.log(err);
+            this.botSpeaking = false;
+        }
     },
 
     // Manage COnnection
@@ -152,6 +175,7 @@ const voiceStatus = {
             this.channelUsers = null;
             this.botSpeaking = false;
             this.selectedUser = null;
+            this.userProcessed = null;
 		}
 	},
 
