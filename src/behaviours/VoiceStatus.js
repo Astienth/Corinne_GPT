@@ -7,7 +7,7 @@ const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehavio
 
 const voiceStatus = {
     // eslint-disable-next-line quotes
-    bonjour: "Bonjour les loulous, je suis opérationelle et à votre service mais un peu lente, ne vous moquez pas sinon je vous banne",
+    bonjour: "Bonjour mes lapins, est ce que Joel est là ?",
     voiceConnection: null,
     channel: null,
     audioPlayer: null,
@@ -16,7 +16,6 @@ const voiceStatus = {
     selectedUser: null,
     triggerWords: ['corinne', 'corrine', 'corine', 'corrinne'],
     limitReply: 250,
-    userProcessed: null,
 
     // EVENTS
     startListeners: function() {
@@ -28,6 +27,7 @@ const voiceStatus = {
         global.client.on('voiceStateUpdate', this.onVoiceStateUpdate.bind(this));
         this.onPlayerCreated();
     },
+
     onVoiceStateUpdate: function(oldState, newState) {
         if(this.channel) {
             // deconnection
@@ -42,6 +42,7 @@ const voiceStatus = {
             }
         }
     },
+
     onDisconnect: async function() {
         try {
             await Promise.race([
@@ -55,10 +56,12 @@ const voiceStatus = {
             this.voiceConnection.destroy();
         }
     },
+
     onBotSpeaking: function(state) {
          this.botSpeaking = state;
          console.log('BOT SPEAKING ' + this.botSpeaking);
     },
+
     onReady: async function() {
         console.log('Connection is in the Ready state!');
         // this.selectedUser = this.getRandomUser();
@@ -66,6 +69,7 @@ const voiceStatus = {
         this.botSpeaking = true;
         await this.textToSpeechSend(this.bonjour);
     },
+
     onUserSpeaking: function(userId) {
         // console.log(this.selectedUser.user.username);
         // if(!this.botSpeaking && this.selectedUser.user.id === userId) {
@@ -75,6 +79,7 @@ const voiceStatus = {
             // this.selectedUser = this.getRandomUser();
         }
     },
+
     onPlayerCreated: function() {
         this.audioPlayer.on('error', error => {
             console.error('Error:', error.message, 'with track', error.resource.metadata.title);
@@ -86,6 +91,7 @@ const voiceStatus = {
         console.log('REMOVE USER ' + this.channelUsers.get(userId).user.username);
         delete this.channelUsers.delete(userId);
     },
+
     getUsers: async function() {
         const fetchedChannel = await this.channel.fetch(true);
         this.channelUsers = fetchedChannel.members;
@@ -100,6 +106,7 @@ const voiceStatus = {
     getTextReply: async function(text) {
         return await HercAi.askHercAi(text);
     },
+
     listenToUser: async function(userId) {
         const subscription = this.voiceConnection.receiver.subscribe(userId, { end: {
             behavior: EndBehaviorType.AfterSilence,
@@ -115,31 +122,32 @@ const voiceStatus = {
                 text = text.toLowerCase();
                 const match = this.triggerWords.find(v => text.includes(v));
                 console.log('Match ' + match);
-                if(match) {
+                if(match && !this.botSpeaking) {
                     // block all listerners
                     this.botSpeaking = true;
-                    this.userProcessed = userId;
                     // remove Corinne part of the
-                    text = text.substring(text.indexOf(match) + match.length, text.length - 1);
+                    text = text.substring(text.indexOf(match) + match.length, text.length + 1);
                     console.log('Recognized match: ' + text);
                     // send to AI only on some conditions
-                    if(text != '' && this.userProcessed == userId) {
+                    if(text != '' && text.length > 15) {
                         console.log('Matching text: ' + text);
+                        // use HercAi
                         let reply = await HercAi.askHercAi(text);
                         console.log('Original reply HercAi: ' + reply);
                         // limit length of reply
                         if(reply.length > this.limitReply) {
                             reply = reply.toLowerCase();
                             const lastPoint = reply.indexOf('.', this.limitReply);
-                            reply = reply.substring(0, lastPoint);
-                            console.log('Limited reply HercAi (' + reply.length + '): ' + reply);
+                            if(lastPoint != -1) {
+                                reply = reply.substring(0, lastPoint);
+                            }
                         }
+                        console.log('Limited reply HercAi (' + reply.length + '): ' + reply);
                         // send back to voice chat
                         await this.textToSpeechSend(reply);
                         return;
                     }
                 }
-                this.botSpeaking = false;
             }
             catch (err) {
                 console.log(err);
@@ -149,6 +157,7 @@ const voiceStatus = {
 
         const audioFilePath = await Deepgram.recordAudio(subscription);
     },
+
     textToSpeechSend: async function(text) {
         try {
             // check if channel exists
@@ -179,6 +188,7 @@ const voiceStatus = {
         // get users
         await this.getUsers();
     },
+
 	destroyConnection: function() {
 		if(this.voiceConnection) {
 			this.voiceConnection.destroy();
@@ -188,7 +198,6 @@ const voiceStatus = {
             this.channelUsers = null;
             this.botSpeaking = false;
             this.selectedUser = null;
-            this.userProcessed = null;
 		}
 	},
 
