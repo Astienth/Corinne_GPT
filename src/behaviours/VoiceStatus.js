@@ -1,19 +1,22 @@
+/* eslint-disable quotes */
 const { VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const VoiceCreator = require('../utils/VoiceCreator');
 const discordVoice = require('@discordjs/voice');
 const HercAi = require('../utils/HercAi');
+const characterAi = require('../utils/CharacterAi');
 const Deepgram = require('../utils/Deepgram');
 const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehaviorType } = require('@discordjs/voice');
 
 const voiceStatus = {
     // eslint-disable-next-line quotes
-    bonjour: "Bonjour mes lapins, est ce que Joel est là ?",
+    bonjour: "Bonjour mes lapins ?",
     voiceConnection: null,
     channel: null,
     audioPlayer: null,
     channelUsers: null,
     botSpeaking: false,
     selectedUser: null,
+    userProcessed: null,
     triggerWords: ['corinne', 'corrine', 'corine', 'corrinne'],
     limitReply: 250,
 
@@ -121,19 +124,27 @@ const voiceStatus = {
                 // look for trigger word
                 text = text.toLowerCase();
                 const match = this.triggerWords.find(v => text.includes(v));
-                console.log('Match ' + match);
+                if(match) {
+                    console.log("\x1b[32m%s\x1b[0m", `Match OK`);
+                }
+                else {
+                    console.log("\x1b[31m%s\x1b[0m", `NO Match`);
+                }
                 if(match && !this.botSpeaking) {
                     // block all listerners
                     this.botSpeaking = true;
+                    this.userProcessed = userId;
                     // remove Corinne part of the
                     text = text.substring(text.indexOf(match) + match.length, text.length + 1);
                     console.log('Recognized match: ' + text);
                     // send to AI only on some conditions
-                    if(text != '' && text.length > 15) {
-                        console.log('Matching text: ' + text);
+                    if(text != '' && text.length > 15 && this.userProcessed == userId) {
+                        console.log("\x1b[32m%s\x1b[0m", 'Matching text: ' + text);
                         // use HercAi
-                        let reply = await HercAi.askHercAi(text);
-                        console.log('Original reply HercAi: ' + reply);
+                        // let reply = await HercAi.askHercAi(text);
+                        // use CharacterAi
+                        let reply = await characterAi.submitText(text);
+                        console.log('Original reply AI: ' + reply);
                         // limit length of reply
                         if(reply.length > this.limitReply) {
                             reply = reply.toLowerCase();
@@ -142,12 +153,17 @@ const voiceStatus = {
                                 reply = reply.substring(0, lastPoint);
                             }
                         }
-                        console.log('Limited reply HercAi (' + reply.length + '): ' + reply);
+                        console.log("\x1b[32m%s\x1b[0m", 'Limited reply HercAi (' + reply.length + '): ' + reply);
                         // send back to voice chat
                         await this.textToSpeechSend(reply);
                         return;
                     }
+                    console.log("\x1b[31m%s\x1b[0m", 'Match too short');
+                    if(this.selectedUser != userId) {
+                        this.botSpeaking = false;
+                    }
                 }
+                console.log("\x1b[31m%s\x1b[0m", 'No match or already processing');
             }
             catch (err) {
                 console.log(err);
