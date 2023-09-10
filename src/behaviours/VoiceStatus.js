@@ -19,7 +19,6 @@ const voiceStatus = {
     channelUsers: null,
     botSpeaking: false,
     userProcessed: null,
-    userAudioSubscriptions: {},
     triggerWords: ['corinne', 'corrine', 'corine', 'corrinne'],
     limitReply: 250,
 
@@ -78,7 +77,7 @@ const voiceStatus = {
     onUserSpeaking: function(userId) {
         if(!this.botSpeaking) {
             console.log('LISTENING TO USER ' + this.channelUsers.get(userId).user.username);
-            Deepgram.recordAudio(this.userAudioSubscriptions[userId], userId);
+            this.listenToUser(userId);
         }
     },
 
@@ -99,9 +98,6 @@ const voiceStatus = {
         this.channelUsers = fetchedChannel.members;
         // remove bot 1148931901260828702
         this.channelUsers = this.channelUsers.filter(user => user.user.id != global.client.user.id);
-        this.channelUsers.forEach(element => {
-            this.listenToUser(element.user.id);
-        });
     },
     getRandomUser: function() {
         return this.channelUsers.random();
@@ -117,7 +113,7 @@ const voiceStatus = {
             behavior: EndBehaviorType.AfterSilence,
             duration: 500,
         } });
-        this.userAudioSubscriptions[userId] = subscription;
+        Deepgram.recordAudio(subscription, userId);
 
         subscription.on('end', async () => {
             try {
@@ -128,7 +124,7 @@ const voiceStatus = {
                 // Deepgram speech to text
                 // let text = await Deepgram.convert(mp3Path, 'audio/mp3');
                 let text = leopardSpeech(mp3Path);
-                console.log('Result speech to text ' + text);
+                console.log('Result speech to text: ' + text);
                 // look for trigger word
                 text = text.toLowerCase();
                 const match = this.triggerWords.find(v => text.includes(v));
