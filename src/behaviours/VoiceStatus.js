@@ -11,6 +11,7 @@ const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehavio
 const voiceStatus = {
     // eslint-disable-next-line quotes
     bonjour: "Bonjour mes lapins ?",
+    loadingSentence: 'Un instant mon loulou, je réfléchis',
     voiceConnection: null,
     channel: null,
     audioPlayer: null,
@@ -143,6 +144,8 @@ const voiceStatus = {
                     // send to AI only on some conditions
                     if(text != '' && text.length > 15 && this.userProcessed == userId) {
                         console.log("\x1b[32m%s\x1b[0m", 'Matching text: ' + text);
+                        //
+                        this.textToSpeechSend(this.loadingSentence, true);
                         // use HercAi
                         // let reply = await HercAi.askHercAi(text);
                         // use CharacterAi
@@ -180,12 +183,12 @@ const voiceStatus = {
         const audioFilePath = await Deepgram.recordAudio(subscription);
     },
 
-    textToSpeechSend: async function(text) {
+    textToSpeechSend: async function(text, preventCatch = false) {
         try {
             // check if channel exists
             if(!this.voiceConnection || !this.channel) return;
 
-            // create mp3
+            // create audio
             const file = await VoiceCreator.createAudioGoogle(text);
 
             // send mp3 to channel
@@ -194,7 +197,9 @@ const voiceStatus = {
         }
         catch (err) {
             console.log(err);
-            this.botSpeaking = false;
+            if(!preventCatch) {
+                this.botSpeaking = false;
+            }
         }
     },
 

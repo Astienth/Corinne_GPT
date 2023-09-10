@@ -12,6 +12,10 @@ const characterAi = {
       'Nathan Drèque': 'CVVOl3izWrimWo3xz7ckqGRpuj_u9HvwI4IIjLlfLzE',
       'Crisse évanne se': '39IagXdDPud5PAt8hLa3TroWab3j-nK3kuEs2vqM6PY',
       'Jésus Christ': '0evHzbnTogrr6Tal8gG3IIfuIgLse3xLNIju1Iwh3cM',
+      'Thérapeute sexuel': 'jSzSel5sJeeIyK-ZgURU7cuJTsGGk6lB-A1TqkPyJf8',
+      'Entraineur fitness': 'W5-Hc1hkjFtg9fLVzrZQQcZJxqaloF_87x3yKc_BIIg',
+      'Nil Dreuckmanne': 'XHEGrpIUABLhXytyGxa18j_vDaXonUdX0T_wbWet8-M',
+      'Patricia Fromage': 'X-Z4l1S8egzpXHbPepX5Oaew2ISSskj3VpwmsjndsLE',
     },
     randomPropertyKey: function(obj) {
       const keys = Object.keys(obj);
@@ -35,7 +39,8 @@ const characterAi = {
       const response = await chat.sendAndAwaitResponse(tradEn, true);
       const tradFr = await jsGoogleTranslateFree.translate('en', 'fr', response.text);
 
-      return 'En tant que ' + key + ', ' + tradFr;
+      // eslint-disable-next-line quotes
+      return "C'est " + key + ' qui vous parle. ' + tradFr;
     },
 };
 
