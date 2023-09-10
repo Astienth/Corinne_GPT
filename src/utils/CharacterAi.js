@@ -1,4 +1,5 @@
 const CharacterAI = require('node_characterai');
+const jsGoogleTranslateFree = require("@kreisler/js-google-translate-free");
 const characterAI = new CharacterAI();
 
 const characterAi = {
@@ -8,16 +9,15 @@ const characterAi = {
       'Joel Miller': 'oJcj_P-Df68mT19nAniAAlHsmsKucNGSStGfkZ5-EOw',
       'Braillanne Molko': 'UlU-dqMF0D9DnJhOix3w0NJlemjlGpnxbJFeZJHeJMQ',
       'Buzz léclair': 'ePPhoqUPuQ8bosybI6kB7WxvexrPuMf75PtkiQGHmsE',
-      'Nathan Draike': 'CVVOl3izWrimWo3xz7ckqGRpuj_u9HvwI4IIjLlfLzE',
+      'Nathan Drèque': 'CVVOl3izWrimWo3xz7ckqGRpuj_u9HvwI4IIjLlfLzE',
       'Crisse évanne se': '39IagXdDPud5PAt8hLa3TroWab3j-nK3kuEs2vqM6PY',
+      'Jésus Christ': '0evHzbnTogrr6Tal8gG3IIfuIgLse3xLNIju1Iwh3cM',
     },
     randomPropertyKey: function(obj) {
       const keys = Object.keys(obj);
       return keys[ keys.length * Math.random() << 0];
     },
     submitText: async function(text) {
-      const { translate } = await import('@vitalets/google-translate-api');
-
       // Authenticating as a guest (use `.authenticateWithToken()` to use an account)
       if(!this.authenticated) {
         await characterAI.authenticateAsGuest();
@@ -31,11 +31,11 @@ const characterAi = {
       const chat = await characterAI.createOrContinueChat(characterId);
 
       // Send a message
-      const tradEn = await translate(text, { to: 'en' });
-      const response = await chat.sendAndAwaitResponse(tradEn.text, true);
-      const tradFr = await translate(response.text, { to: 'fr' });
+      const tradEn = await jsGoogleTranslateFree.translate('fr', 'en', text);
+      const response = await chat.sendAndAwaitResponse(tradEn, true);
+      const tradFr = await jsGoogleTranslateFree.translate('en', 'fr', response.text);
 
-      return 'En tant que ' + key + ', ' + tradFr.text;
+      return 'En tant que ' + key + ', ' + tradFr;
     },
 };
 

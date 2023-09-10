@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const VoiceCreator = {
-    createAudio: async function(text) {
+    createAudioGoogle: async function(text) {
         try {
             const filePath = path.resolve('./src/audios/output.mp3');
 

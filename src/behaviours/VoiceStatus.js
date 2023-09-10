@@ -144,15 +144,18 @@ const voiceStatus = {
                         // let reply = await HercAi.askHercAi(text);
                         // use CharacterAi
                         let reply = await characterAi.submitText(text);
-                        console.log('Original reply AI: ' + reply);
                         // limit length of reply
                         if(reply.length > this.limitReply) {
+                            console.log('Original reply AI: ' + reply);
                             reply = reply.toLowerCase();
                             const lastPoint = reply.indexOf('.', this.limitReply);
                             if(lastPoint != -1) {
                                 reply = reply.substring(0, lastPoint);
                             }
                             console.log("\x1b[32m%s\x1b[0m", 'Limited reply AI (' + reply.length + '): ' + reply);
+                        }
+                        else {
+                            console.log("\x1b[32m%s\x1b[0m", 'Original reply AI: ' + reply);
                         }
                         // send back to voice chat
                         await this.textToSpeechSend(reply);
@@ -180,7 +183,7 @@ const voiceStatus = {
             if(!this.voiceConnection || !this.channel) return;
 
             // create mp3
-            const file = await VoiceCreator.createAudio(text);
+            const file = await VoiceCreator.createAudioGoogle(text);
 
             // send mp3 to channel
             const resource = createAudioResource(file);
