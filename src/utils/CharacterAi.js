@@ -1,5 +1,5 @@
 const CharacterAI = require('node_characterai');
-const jsGoogleTranslateFree = require("@kreisler/js-google-translate-free");
+const jsGoogleTranslateFree = require('@kreisler/js-google-translate-free');
 const characterAI = new CharacterAI();
 
 const characterAi = {

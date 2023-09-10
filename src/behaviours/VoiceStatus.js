@@ -3,6 +3,7 @@ const { VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const VoiceCreator = require('../utils/VoiceCreator');
 const discordVoice = require('@discordjs/voice');
 const HercAi = require('../utils/HercAi');
+const leopardSpeech = require('../utils/LeopardNode');
 const characterAi = require('../utils/CharacterAi');
 const Deepgram = require('../utils/Deepgram');
 const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehaviorType } = require('@discordjs/voice');
@@ -119,8 +120,10 @@ const voiceStatus = {
         subscription.once('end', async () => {
             const mp3Path = await Deepgram.convertPCMtoMP3(audioFilePath);
             try {
-                let text = await Deepgram.convert(mp3Path, 'audio/mp3');
-                console.log('Result deepgram ' + text);
+                // Deepgram speech to text
+                // let text = await Deepgram.convert(mp3Path, 'audio/mp3');
+                let text = leopardSpeech(mp3Path);
+                console.log('Result speech to text ' + text);
                 // look for trigger word
                 text = text.toLowerCase();
                 const match = this.triggerWords.find(v => text.includes(v));
