@@ -152,8 +152,8 @@ const voiceStatus = {
                             if(lastPoint != -1) {
                                 reply = reply.substring(0, lastPoint);
                             }
+                            console.log("\x1b[32m%s\x1b[0m", 'Limited reply AI (' + reply.length + '): ' + reply);
                         }
-                        console.log("\x1b[32m%s\x1b[0m", 'Limited reply HercAi (' + reply.length + '): ' + reply);
                         // send back to voice chat
                         await this.textToSpeechSend(reply);
                         return;
