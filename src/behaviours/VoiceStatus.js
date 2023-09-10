@@ -7,6 +7,7 @@ const leopardSpeech = require('../utils/LeopardNode');
 const characterAi = require('../utils/CharacterAi');
 const Deepgram = require('../utils/Deepgram');
 const { createAudioPlayer, createAudioResource, NoSubscriberBehavior, EndBehaviorType } = require('@discordjs/voice');
+const { async } = require('@kreisler/js-google-translate-free');
 
 const voiceStatus = {
     // eslint-disable-next-line quotes
@@ -17,8 +18,8 @@ const voiceStatus = {
     audioPlayer: null,
     channelUsers: null,
     botSpeaking: false,
-    selectedUser: null,
     userProcessed: null,
+    userAudioSubscriptions: {},
     triggerWords: ['corinne', 'corrine', 'corine', 'corrinne'],
     limitReply: 250,
 
@@ -64,24 +65,20 @@ const voiceStatus = {
 
     onBotSpeaking: function(state) {
          this.botSpeaking = state;
-         console.log('BOT SPEAKING ' + this.botSpeaking);
+         console.log('BOT SPEAKING Event ' + this.botSpeaking);
     },
 
     onReady: async function() {
         console.log('Connection is in the Ready state!');
-        // this.selectedUser = this.getRandomUser();
         // forcing to avoid listening straight away
         this.botSpeaking = true;
         await this.textToSpeechSend(this.bonjour);
     },
 
     onUserSpeaking: function(userId) {
-        // console.log(this.selectedUser.user.username);
-        // if(!this.botSpeaking && this.selectedUser.user.id === userId) {
         if(!this.botSpeaking) {
-            console.log('LISTENING TO USER');
-            this.listenToUser(userId);
-            // this.selectedUser = this.getRandomUser();
+            console.log('LISTENING TO USER ' + this.channelUsers.get(userId).user.username);
+            Deepgram.recordAudio(this.userAudioSubscriptions[userId], userId);
         }
     },
 
@@ -102,6 +99,9 @@ const voiceStatus = {
         this.channelUsers = fetchedChannel.members;
         // remove bot 1148931901260828702
         this.channelUsers = this.channelUsers.filter(user => user.user.id != global.client.user.id);
+        this.channelUsers.forEach(element => {
+            this.listenToUser(element.user.id);
+        });
     },
     getRandomUser: function() {
         return this.channelUsers.random();
@@ -117,10 +117,14 @@ const voiceStatus = {
             behavior: EndBehaviorType.AfterSilence,
             duration: 500,
         } });
+        this.userAudioSubscriptions[userId] = subscription;
 
-        subscription.once('end', async () => {
-            const mp3Path = await Deepgram.convertPCMtoMP3(audioFilePath);
+        subscription.on('end', async () => {
             try {
+                console.log("PROCESS START " + this.botSpeaking);
+                if(this.botSpeaking) { return; }
+                console.log('ACCESSING AUDIO ' + userId);
+                const mp3Path = await Deepgram.convertPCMtoMP3('./src/audios/input' + userId + '.pcm', userId);
                 // Deepgram speech to text
                 // let text = await Deepgram.convert(mp3Path, 'audio/mp3');
                 let text = leopardSpeech(mp3Path);
@@ -134,7 +138,7 @@ const voiceStatus = {
                 else {
                     console.log("\x1b[31m%s\x1b[0m", `NO Match`);
                 }
-                if(match && !this.botSpeaking) {
+                if(match) {
                     // block all listerners
                     this.botSpeaking = true;
                     this.userProcessed = userId;
@@ -146,10 +150,8 @@ const voiceStatus = {
                         console.log("\x1b[32m%s\x1b[0m", 'Matching text: ' + text);
                         //
                         this.textToSpeechSend(this.loadingSentence, true);
-                        // use HercAi
-                        // let reply = await HercAi.askHercAi(text);
-                        // use CharacterAi
-                        let reply = await characterAi.submitText(text);
+                        // get AI response
+                        let reply = await this.getAIResponse(text);
                         // limit length of reply
                         if(reply.length > this.limitReply) {
                             console.log('Original reply AI: ' + reply);
@@ -168,7 +170,7 @@ const voiceStatus = {
                         return;
                     }
                     console.log("\x1b[31m%s\x1b[0m", 'Match too short');
-                    if(this.selectedUser != userId) {
+                    if(this.userProcessed == userId) {
                         this.botSpeaking = false;
                     }
                 }
@@ -179,8 +181,13 @@ const voiceStatus = {
                 this.botSpeaking = false;
             }
         });
+    },
 
-        const audioFilePath = await Deepgram.recordAudio(subscription);
+    getAIResponse: async function(text) {
+        // use HercAi
+        // let reply = await HercAi.askHercAi(text);
+        // use CharacterAi
+        return await characterAi.submitText(text);
     },
 
     textToSpeechSend: async function(text, preventCatch = false) {
@@ -224,7 +231,6 @@ const voiceStatus = {
             this.audioPlayer = null;
             this.channelUsers = null;
             this.botSpeaking = false;
-            this.selectedUser = null;
 		}
 	},
 

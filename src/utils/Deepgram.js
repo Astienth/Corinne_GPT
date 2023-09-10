@@ -25,9 +25,9 @@ const speechToText = {
             return false;
         }
     },
-    recordAudio: function(subscription) {
+    recordAudio: function(subscription, userId) {
         console.log('RECORD AUDIO');
-        const writeStream = fs.createWriteStream('./src/audios/input.pcm');
+        const writeStream = fs.createWriteStream('./src/audios/input' + userId + '.pcm');
         const opusDecoder = new prism.opus.Decoder({
             frameSize: 960,
             channels: 2,
@@ -35,12 +35,11 @@ const speechToText = {
         });
 
         subscription.pipe(opusDecoder).pipe(writeStream);
-        return './src/audios/input.pcm';
     },
-    convertPCMtoMP3: async function(filePath) {
+    convertPCMtoMP3: async function(filePath, userId) {
         try{
             const encoder = new Lame({
-                output: './src/audios/input.mp3',
+                output: './src/audios/input' + userId + '.mp3',
                 raw: true,
                 signed: true,
                 bitwidth: 16,
@@ -50,7 +49,7 @@ const speechToText = {
             }).setFile(filePath);
 
             await encoder.encode();
-            return './src/audios/input.mp3';
+            return './src/audios/input' + userId + '.mp3';
         }
         catch (err) {
             console.log(err);
