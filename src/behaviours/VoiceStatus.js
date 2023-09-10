@@ -113,7 +113,7 @@ const voiceStatus = {
     listenToUser: async function(userId) {
         const subscription = this.voiceConnection.receiver.subscribe(userId, { end: {
             behavior: EndBehaviorType.AfterSilence,
-            duration: 100,
+            duration: 500,
         } });
 
         subscription.once('end', async () => {
