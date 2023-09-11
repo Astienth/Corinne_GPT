@@ -77,7 +77,6 @@ const voiceStatus = {
     },
 
     onUserSpeaking: function(userId) {
-        console.log('onUserSpeaking botSpeaking ? ' + this.botSpeaking);
         if(!this.botSpeaking) {
             console.log('LISTENING TO USER ' + this.channelUsers.get(userId).user.username);
             this.listenToUser(userId);
@@ -113,76 +112,78 @@ const voiceStatus = {
         } });
         Deepgram.recordAudio(subscription, userId);
 
-        subscription.once('end', async () => {
-            try {
-                console.log("PROCESS START " + this.botSpeaking);
-                if(this.botSpeaking) {
+        subscription.once('end', this.processEndListener.bind(this, userId));
+    },
+
+    processEndListener: async function(userId) {
+        try {
+            if(this.botSpeaking) {
+                return;
+            }
+
+            console.log('ACCESSING AUDIO ' + this.channelUsers.get(userId).user.username);
+            this.botSpeaking = true;
+            const mp3Path = await Deepgram.convertPCMtoMP3('./src/audios/input' + userId + '.pcm', userId);
+            // await new Promise(resolve => setTimeout(resolve, 5000));
+            // Deepgram speech to text
+            // let text = await Deepgram.convert(mp3Path, 'audio/mp3');
+            let text = leopardSpeech(mp3Path);
+            console.log('Result speech to text: ' + "'" + text + "'");
+            // look for trigger word
+            text = text.toLowerCase();
+            const match = this.triggerWords.find(v => text.includes(v));
+
+            if(match) {
+                console.log("\x1b[32m%s\x1b[0m", `Match OK`);
+            }
+            else {
+                console.log("\x1b[31m%s\x1b[0m", `NO Match`);
+            }
+            if(match) {
+                // block all listerners
+                this.botSpeaking = true;
+                this.userProcessed = userId;
+                // remove Corinne part of the
+                text = text.substring(text.indexOf(match) + match.length, text.length + 1);
+                console.log('Recognized match: ' + text);
+                // send to AI only on some conditions
+                if(text != '' && text.length > 15 && this.userProcessed == userId) {
+                    console.log("\x1b[32m%s\x1b[0m", 'Matching text: ' + text);
+                    this.preventStopSpeakingBot = true;
+                    await this.textToSpeechSend(this.loadingSentence);
+                    // get AI response
+                    let reply = await this.getAIResponse(text);
+                    // limit length of reply
+                    if(reply.length > this.limitReply) {
+                        console.log('Original reply AI: ' + reply);
+                        reply = reply.toLowerCase();
+                        const lastPoint = reply.indexOf('.', this.limitReply);
+                        if(lastPoint != -1) {
+                            reply = reply.substring(0, lastPoint);
+                        }
+                        console.log("\x1b[32m%s\x1b[0m", 'Limited reply AI (' + reply.length + '): ' + reply);
+                    }
+                    else {
+                        console.log("\x1b[32m%s\x1b[0m", 'Original reply AI: ' + reply);
+                    }
+                    // send back to voice chat
+                    this.preventStopSpeakingBot = false;
+                    await this.textToSpeechSend(reply);
                     return;
                 }
-
-                console.log('ACCESSING AUDIO ' + userId);
-                this.botSpeaking = true;
-                const mp3Path = await Deepgram.convertPCMtoMP3('./src/audios/input' + userId + '.pcm', userId);
-                // Deepgram speech to text
-                // let text = await Deepgram.convert(mp3Path, 'audio/mp3');
-                let text = leopardSpeech(mp3Path);
-                console.log('Result speech to text: ' + text);
-                // look for trigger word
-                text = text.toLowerCase();
-                const match = this.triggerWords.find(v => text.includes(v));
-
-                if(match) {
-                    console.log("\x1b[32m%s\x1b[0m", `Match OK`);
+                console.log("\x1b[31m%s\x1b[0m", 'Match too short');
+                if(this.userProcessed == userId) {
+                    this.botSpeaking = false;
                 }
-                else {
-                    console.log("\x1b[31m%s\x1b[0m", `NO Match`);
-                }
-                if(match) {
-                    // block all listerners
-                    this.botSpeaking = true;
-                    this.userProcessed = userId;
-                    // remove Corinne part of the
-                    text = text.substring(text.indexOf(match) + match.length, text.length + 1);
-                    console.log('Recognized match: ' + text);
-                    // send to AI only on some conditions
-                    if(text != '' && text.length > 15 && this.userProcessed == userId) {
-                        console.log("\x1b[32m%s\x1b[0m", 'Matching text: ' + text);
-                        this.preventStopSpeakingBot = true;
-                        await this.textToSpeechSend(this.loadingSentence);
-                        // get AI response
-                        let reply = await this.getAIResponse(text);
-                        // limit length of reply
-                        if(reply.length > this.limitReply) {
-                            console.log('Original reply AI: ' + reply);
-                            reply = reply.toLowerCase();
-                            const lastPoint = reply.indexOf('.', this.limitReply);
-                            if(lastPoint != -1) {
-                                reply = reply.substring(0, lastPoint);
-                            }
-                            console.log("\x1b[32m%s\x1b[0m", 'Limited reply AI (' + reply.length + '): ' + reply);
-                        }
-                        else {
-                            console.log("\x1b[32m%s\x1b[0m", 'Original reply AI: ' + reply);
-                        }
-                        // send back to voice chat
-                        this.preventStopSpeakingBot = false;
-                        await this.textToSpeechSend(reply);
-                        return;
-                    }
-                    console.log("\x1b[31m%s\x1b[0m", 'Match too short');
-                    if(this.userProcessed == userId) {
-                        this.botSpeaking = false;
-                    }
-                }
-                console.log("\x1b[31m%s\x1b[0m", 'No match or already processing');
-                this.botSpeaking = false;
             }
-            catch (err) {
-                console.log(err);
-                this.botSpeaking = false;
-                this.preventStopSpeakingBot = false;
-            }
-        });
+            console.log("\x1b[31m%s\x1b[0m", 'No match or already processing');
+            this.botSpeaking = false;
+        }
+        catch (err) {
+            console.log(err);
+            this.botSpeaking = false;
+            this.preventStopSpeakingBot = false;
+        }
     },
 
     getAIResponse: async function(text) {
